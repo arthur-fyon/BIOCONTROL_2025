@@ -71,3 +71,35 @@ function neuromodCaSA(ncells, g_all, ICs, gsth, guth)
 
   return g_all_neuromod, ICs_th_neuromod
 end
+
+## This function neuromodulate a set of STG neurons to switch from a certain firing pattern
+# to another in a robust way using the compensation algorithm with gCaS and gH
+function neuromodCaSH(ncells, g_all, ICs, gsth, guth)
+  # Initialiizing some variables
+  g_all_neuromod = zeros(ncells, 8)
+  ICs_th_neuromod = zeros(ncells, 8)
+
+  # Loop over all STG neurons
+  for n = 1 : ncells
+    # Extracting fixed maximal conductances as well as threshold voltage
+    gNa = g_all[n, 1]
+    gCaT = g_all[n, 2]
+    gA = g_all[n, 4]
+    gKCa = g_all[n, 5]
+    gKd = g_all[n, 6]
+    gleak = g_all[n, 8]
+    Vth = ICs[n, 1]
+
+    # Computing new gCaS and gA using the compensation algorithm to neuromodulate firing pattern
+    (gCaS, gH) = DICs_gmax_neuromodCaSH(gNa, gCaT, gA, gKd, gKCa, gleak, gsth, guth, Vth)
+
+    # Computing DICs & co of the current STG neuron
+    (ith, iosc, gf, gs, gu, gin, Istatic) = DICs(V, 0., gNa, gCaT, gCaS, gA, gKCa, gKd, gH, gleak)
+
+    # Saving DICs & co at threshold and up state voltage and all maximal conductances
+    ICs_th_neuromod[n, :] = [V[ith], V[iosc], gf[ith], gs[ith], gs[iosc], gu[ith], gin[ith], Istatic[ith]]
+    g_all_neuromod[n, :] = [gNa, gCaT, gCaS, gA, gKCa, gKd, gH, gleak]
+  end
+
+  return g_all_neuromod, ICs_th_neuromod
+end

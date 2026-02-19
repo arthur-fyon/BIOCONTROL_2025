@@ -245,3 +245,58 @@ function DICs_gmax_neuromodCaSA(gNa, gCaT, gKd, gKCa, gH, gleak, gs_th, gu_th, V
   g_sol = \(A, B)
   return (g_sol[1], g_sol[2])
 end
+
+# This function computes the values of (gCaS, gH) that generate the values of the DICs (slow and uslow)
+# at threshold voltage for the given set of conductances (gNa, gCaT, gA, gKd, gKCa, gleak)
+function DICs_gmax_neuromodCaSH(gNa, gCaT, gA, gKd, gKCa, gleak, gs_th, gu_th, Vth)
+  # Defining the 3 time constants of the 3 timescales
+  tau_fast = tau_mNa(Vth)
+  tau_slow = tau_mKd(Vth)
+  tau_uslow = tau_mH(Vth)
+
+  # Computing the wfs(V) and wsu(V) for all gating variables
+  (wfs_mNa, wsu_mNa) = var_contribution(tau_mNa(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_hNa, wsu_hNa) = var_contribution(tau_hNa(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_mCaT, wsu_mCaT) = var_contribution(tau_mCaT(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_hCaT, wsu_hCaT) = var_contribution(tau_hCaT(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_mCaS, wsu_mCaS) = var_contribution(tau_mCaS(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_hCaS, wsu_hCaS) = var_contribution(tau_hCaS(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_mA, wsu_mA) = var_contribution(tau_mA(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_hA, wsu_hA) = var_contribution(tau_hA(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_mKd, wsu_mKd) = var_contribution(tau_mKd(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_mKCa, wsu_mKCa) = var_contribution(tau_mKCa(Vth), tau_fast, tau_slow, tau_uslow)
+  (wfs_mH, wsu_mH) = var_contribution(tau_mH(Vth), tau_fast, tau_slow, tau_uslow)
+
+  # Calcium dynamic in the ultraslow timescale
+  wfs_mKCa2 = 0.
+  wsu_mKCa2 = 0.
+
+  # Computing equilibrium value of [Ca] (have to approximate gCaS)
+  Ca_th = -0.94*(gCaT*mCaT_inf(Vth)^3*hCaT_inf(Vth)*(Vth-VCa) + 10*mCaS_inf(Vth)^3*hCaS_inf(Vth)*(Vth-VCa)) + 0.05
+
+  # Initializing the linear system of the compensation algorithm
+  A = zeros(2, 2)
+  B = zeros(2, 1)
+
+  # Filling the A matrix of the compensation algorithm (= contribution of the unknowns to the DICs)
+  A[1, 1] = (1/gleak) * ((wsu_mCaS - wfs_mCaS)*3*mCaS_inf(Vth)^2*hCaS_inf(Vth)*(Vth-VCa)*dmCaS(Vth) + (wsu_hCaS - wfs_hCaS)*mCaS_inf(Vth)^3*(Vth-VCa)*dhCaS(Vth))
+  A[1, 2] = (1/gleak) * ((wsu_mH - wfs_mH)*(Vth-VH)*dmH(Vth))
+  A[2, 1] = (1/gleak) * ((1 - wsu_mCaS)*3*mCaS_inf(Vth)^2*hCaS_inf(Vth)*(Vth-VCa)*dmCaS(Vth) + (1 - wsu_hCaS)*mCaS_inf(Vth)^3*(Vth-VCa)*dhCaS(Vth))
+  A[2, 2] = (1/gleak) * ((1 - wsu_mH)*(Vth-VH)*dmH(Vth))
+
+  # Filling the B matrix of the compensation algorithm (= contribution of the non-unknowns to the DICs)
+  B[1, 1] = gs_th - (1/gleak) * ((wsu_mNa - wfs_mNa)*gNa*3*mNa_inf(Vth)^2*hNa_inf(Vth)*(Vth-VNa)*dmNa(Vth) + (wsu_hNa - wfs_hNa)*gNa*mNa_inf(Vth)^3*(Vth-VNa)*dhNa(Vth) +
+                                (wsu_mCaT - wfs_mCaT)*3*gCaT*mCaT_inf(Vth)^2*hCaT_inf(Vth)*(Vth-VCa)*dmCaT(Vth) + (wsu_hCaT- wfs_hCaT)*gCaT*mCaT_inf(Vth)^3*(Vth-VCa)*dhCaT(Vth) +
+                                (wsu_mKd - wfs_mKd)*gKd*4*mKd_inf(Vth)^3*(Vth-VK)*dmKd(Vth) + (wsu_mKCa - wfs_mKCa)*gKCa*4*mKCa_inf(Vth, Ca_th)^3*(Vth-VK)*dmKCa(Vth, Ca_th) +
+                                (wsu_mKCa2 - wfs_mKCa2)*gKCa*4*mKCa_inf(Vth, Ca_th)^3*(Vth-VK).*dmKCa2(Vth, Ca_th).*dCa(Vth, Ca_th, gCaT, 10.) +
+                                (wsu_mA - wfs_mA)*gA*3*mA_inf(Vth)^2*hA_inf(Vth)*(Vth-VK)*dmA(Vth) + (wsu_hA - wfs_hA)*gA*mA_inf(Vth)^3*(Vth-VK)*dhA(Vth))
+  B[2, 1] = gu_th - (1/gleak) * ((1 - wsu_mNa)*gNa*3*mNa_inf(Vth)^2*hNa_inf(Vth)*(Vth-VNa)*dmNa(Vth) + (1 - wsu_hNa)*gNa*mNa_inf(Vth)^3*(Vth-VNa)*dhNa(Vth) +
+                                (1 - wsu_mCaT)*3*gCaT*mCaT_inf(Vth)^2*hCaT_inf(Vth)*(Vth-VCa)*dmCaT(Vth) + (1 - wsu_hCaT)*gCaT*mCaT_inf(Vth)^3*(Vth-VCa)*dhCaT(Vth) +
+                                (1 - wsu_mKd)*gKd*4*mKd_inf(Vth)^3*(Vth-VK)*dmKd(Vth) + (1 - wsu_mKCa)*gKCa*4*mKCa_inf(Vth, Ca_th)^3*(Vth-VK)*dmKCa(Vth, Ca_th) +
+                                (1 - wsu_mKCa2)*gKCa*4*mKCa_inf(Vth, Ca_th)^3*(Vth-VK).*dmKCa2(Vth, Ca_th).*dCa(Vth, Ca_th, gCaT, 10.) +
+                                (1 - wsu_mA)*gA*3*mA_inf(Vth)^2*hA_inf(Vth)*(Vth-VK)*dmA(Vth) + (1 - wsu_hA)*gA*mA_inf(Vth)^3*(Vth-VK)*dhA(Vth))
+
+  # Solving the linear system
+  g_sol = \(A, B)
+  return (g_sol[1], g_sol[2])
+end
