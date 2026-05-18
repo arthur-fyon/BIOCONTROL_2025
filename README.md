@@ -1,8 +1,8 @@
-# Neuromodulation and homeostasis: complementary mechanisms for robust neural function
+# Activity-dependent neuromodulation and calcium homeostasis cooperate to produce robust and modulable neuronal function
 
 ## About this repository
 
-This repository contains all code and data involved in **Neuromodulation and homeostasis: complementary mechanisms for robust neural function**.
+This repository contains all code and data involved in **Activity-dependent neuromodulation and calcium homeostasis cooperate to produce robust and modulable neuronal function**.
 
 ## Getting started
 
